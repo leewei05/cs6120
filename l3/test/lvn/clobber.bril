@@ -1,5 +1,4 @@
-# CMD: bril2json < {filename} | python3 ../../lvn.py | python3 ../../tdce.py tdce | bril2txt
-#
+# TODO: true
 @main {
   a: int = const 4;
   b: int = const 2;
