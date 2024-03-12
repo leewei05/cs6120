@@ -1,5 +1,6 @@
 import json
 import sys
+import basic_block
 from collections import OrderedDict
 
 class Optimizer:
@@ -23,19 +24,18 @@ class Optimizer:
         self.name_num += 1
         return new_name
 
-    def get_num(self, s):
+    # parse number from the value number e.g., v1, v2
+    def parse_num(self, s):
         s = s.replace("v", "")
         return int(s)
 
-    # check if var is rewritten afterwards
+    # check if var is rewritten afterwards within the same basic block
     def check_var_remaining(self, var, instrs):
         for instr in instrs:
-            if 'op' in instr and instr['op'] in ["jmp", "ret", "br"]:
-                return False
-            if 'label' in instr:
-                return False
+            # var is used before redefined
             if 'args' in instr and var in instr['args']:
                 return False
+            # no instruction uses var as args before redefining it
             if 'dest' in instr and instr['dest'] == var:
                 return True
 
@@ -52,13 +52,6 @@ class Optimizer:
 
         return out
 
-    def is_commutative(self, op):
-        match op:
-            case "add" | "mul" | "fadd" | "fmul" | "eq" | "and" | "or":
-                return True
-            case _:
-                return False
-
     def create_tup(self, instr):
         dest = instr.get('dest')
         op = instr.get('op')
@@ -69,19 +62,11 @@ class Optimizer:
                 case "const":
                     val = instr.get('value')
                     tup = (op, val)
-                case "add" | "sub" | "mul" | "div" | "fadd" | "fsub" | "fmul" | "fdiv" | "ptradd" | "alloc" | "free" | "store" | "load":
+                # commutative operations
+                case "add" | "mul" | "fadd" | "fmul" | "eq" | "and" | "or":
                     out = self.args2valnum(args)
-                    if self.is_commutative(op):
-                        tup = (op, tuple(sorted(out)))
-                    else:
-                        tup = (op, tuple(out))
-                case "eq" | "le" | "lt" | "gt" | "ge" | "not" | "and" | "or":
-                    out = self.args2valnum(args)
-                    if self.is_commutative(op):
-                        tup = (op, tuple(sorted(out)))
-                    else:
-                        tup = (op, tuple(out))
-                case "id" | "print":
+                    tup = (op, tuple(sorted(out)))
+                case "sub" | "div" | "fsub" | "fdiv" | "le" | "lt" | "gt" | "ge" | "not" | "id" | "print":
                     out = self.args2valnum(args)
                     tup = (op, tuple(out))
                 case "call":
@@ -103,28 +88,49 @@ class Optimizer:
             c += 1
         print("--------------------")
 
-    # TODO: instrs should be a basic block
+    def replace_args(self, instr):
+        new_args = []
+        for arg in instr.get('args'):
+            # replace arg with the newest arg
+            if arg in self.var2num:
+                tup = list(self.table.items())[self.parse_num(self.var2num[arg])]
+                _, (_, var, type) = tup
+                match instr['op']:
+                    case "not" | "and" | "or":
+                        if type == "bool":
+                            new_args.append(var)
+                        else:
+                            new_args.append(arg)
+                    case "add" | "sub" | "mul" | "div":
+                        if type == "int":
+                            new_args.append(var)
+                        else:
+                            new_args.append(arg)
+                    case "fadd" | "fsub" | "fmul" | "fdiv":
+                        if type == "float":
+                            new_args.append(var)
+                        else:
+                            new_args.append(arg)
+                    case _:
+                        new_args.append(arg)
+            else:
+                new_args.append(arg)
+
+        return new_args
+
     def lvn(self, instrs):
         self.reset()
         for i, instr in enumerate(instrs):
-            if 'op' in instr and instr['op'] in ["jmp", "ret", "br"]:
-                self.reset()
-                continue
-            # label
-            elif 'label' in instr:
-                self.reset()
+            if 'op' in instr and instr['op'] in ["free", "alloc", "load", "store", "ptradd"]:
                 continue
 
             tup = self.create_tup(instr)
             dest = instr.get('dest')
             curr_type = instr.get('type')
-            # redefinition
 
             # replace expr
-            if tup in self.table and instr['op'] not in ["free", "alloc", "load", "store", "ptrAdd"]:
-            #if tup in self.table:
+            if tup in self.table:
                 num, var, type = self.table[tup]
-                #instr['dest'] = var
                 if type == curr_type:
                     instr['op'] = 'id'
                     instr['args'] = [var]
@@ -139,32 +145,12 @@ class Optimizer:
                 tmp_dest = self.new_var()
                 instr['dest'] = tmp_dest
 
-            if 'args' in instr and instr['op'] not in ["free", "alloc", "load", "store", "ptrAdd", "call"]:
+            if 'args' in instr:
                 # TODO: check if both args are constant
                 # evaluate lhs op rhs -> c
                 # replace instr with dest -> const c
                 # store c in table
-                new_args = []
-                for arg in instr.get('args'):
-                    # replace arg with the newest arg
-                    if arg in self.var2num:
-                        tup = list(self.table.items())[self.get_num(self.var2num[arg])]
-                        _, (_, var, type) = tup
-                        if instr['op'] not in ["not", "and", "or"]:
-                            # instr like add, sub, mul, div
-                            # arg type must be int
-                            if type == "int":
-                                new_args.append(var)
-                            else:
-                                new_args.append(arg)
-                        else:
-                            if type == "bool":
-                                new_args.append(var)
-                            else:
-                                new_args.append(arg)
-                    else:
-                        new_args.append(arg)
-
+                new_args = self.replace_args(instr)
                 instr['args'] = new_args
 
             if dest is not None:
@@ -172,9 +158,13 @@ class Optimizer:
 
         #self.dump()
 
-if __name__ == '__main__':
+def main():
     opt = Optimizer()
     prog = json.load(sys.stdin)
-    for func in prog['functions']:
-        opt.lvn(func['instrs'])
+    bbs = basic_block.create_bb(prog)
+    for bb in bbs:
+        opt.lvn(bb)
     json.dump(prog, sys.stdout, indent=2)
+
+if __name__ == '__main__':
+    main()

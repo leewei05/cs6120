@@ -7,7 +7,7 @@ primes-between,dce,574100
 primes-between,lvn_dce,574100
 birthday,baseline,484
 birthday,dce,483
-birthday,lvn_dce,482
+birthday,lvn_dce,437
 orders,baseline,5352
 orders,dce,5352
 orders,lvn_dce,5352
@@ -31,7 +31,7 @@ is-decreasing,dce,127
 is-decreasing,lvn_dce,121
 check-primes,baseline,8468
 check-primes,dce,8419
-check-primes,lvn_dce,7721
+check-primes,lvn_dce,8070
 sum-sq-diff,baseline,3038
 sum-sq-diff,dce,3036
 sum-sq-diff,lvn_dce,2735
@@ -94,7 +94,7 @@ armstrong,dce,130
 armstrong,lvn_dce,130
 pascals-row,baseline,146
 pascals-row,dce,139
-pascals-row,lvn_dce,124
+pascals-row,lvn_dce,130
 collatz,baseline,169
 collatz,dce,169
 collatz,lvn_dce,169
@@ -112,7 +112,7 @@ reverse,dce,46
 reverse,lvn_dce,46
 fizz-buzz,baseline,3652
 fizz-buzz,dce,3552
-fizz-buzz,lvn_dce,3052
+fizz-buzz,lvn_dce,3252
 bitwise-ops,baseline,1690
 bitwise-ops,dce,1689
 bitwise-ops,lvn_dce,1689
