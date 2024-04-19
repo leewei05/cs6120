@@ -1,7 +1,9 @@
 import sys
 import json
 import basic_block
+import logging
 import cfg as data
+
 
 class DOM():
     """ DOM is a class for dominators.
@@ -38,6 +40,7 @@ def get_dom_tree():
 
 def get_dom(cfg: data.CFG):
     """ Find dominators within a function
+        Def: A dominates B iff: all paths from the entry to B include A
 
         input: cfg of a function
         output: map[every block] -> block's dominators
@@ -59,20 +62,23 @@ def get_dom(cfg: data.CFG):
     vertices = all
     vertices.remove(entry)
 
-    # self's dominators include itself
     change = True
+    # self's dominators include itself
+    old_dom = dom.copy()
     dom[entry] = {entry}
+    logging.debug(f'initial dom state: {dom}')
     # converge until dom doesn't change
     while change and len(vertices) != 0:
+        old_dom = dom.copy()
         for v in vertices:
-            curr_dom = dom[v]
             # add v as its own dominator
+            curr_dom = set()
             curr_dom.add(v)
 
             # v's first predecessor
             first_pred = list(cfg.pred[v])[0]
             # first predecessor's dominators
-            first_dom = set(dom[first_pred])
+            v_all_dom = set(dom[first_pred])
 
             # sets of every predecessor's dominators
             sets = []
@@ -81,14 +87,14 @@ def get_dom(cfg: data.CFG):
                 sets.append(pred_dom)
 
             # use this sets to intersect to get common dominators
-            first_dom.intersection(*sets)
+            v_all_dom.intersection(*sets)
             # {v} union with its dominators
-            curr_dom.union(first_dom)
-            old_dom = dom[v]
-            if old_dom == curr_dom:
-                change = False
-
+            curr_dom = curr_dom.union(v_all_dom)
+            logging.debug(f'current dominators for {v}: {v_all_dom}')
             dom[v] = curr_dom
+
+        if old_dom == dom:
+            change = False
 
     return dom
 
@@ -110,6 +116,12 @@ def test_dom():
     """
 
 def main():
+    args = sys.argv
+    if (len(args) < 2):
+        logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+    elif args[1] == "debug":
+        logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+
     prog = json.load(sys.stdin)
     for func in prog['functions']:
         print(f'func name: {func['name']}')
