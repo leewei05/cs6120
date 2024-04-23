@@ -25,7 +25,12 @@ class CFG():
         for i, (k, bb) in enumerate(self.bb.items()):
             # intialize pred map
             self.pred[k] = []
-            last_instr = bb[-1]
+
+            if len(bb) == 0:
+                return
+            else:
+                last_instr = bb[-1]
+
             if 'op' in last_instr and last_instr['op'] in TERMINATORS:
                 match last_instr['op']:
                     case "jmp" | "br":

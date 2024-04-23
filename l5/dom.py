@@ -44,12 +44,6 @@ def get_dom(cfg: data.CFG):
 
         input: cfg of a function
         output: map[every block] -> block's dominators
-
-        dom = {every block -> set of all blocks}
-        dom[entry] = {entry}
-        while dom is still changing:
-            for vertex in CFG except entry:
-                dom[vertex] = {vertex} union ⋂(dom[p] for p in vertex.preds}
     """
     dom = {}
     # map every block to a set of all blocks
@@ -76,6 +70,9 @@ def get_dom(cfg: data.CFG):
             curr_dom.add(v)
 
             # v's first predecessor
+            if cfg.pred[v] == []:
+                continue
+
             first_pred = list(cfg.pred[v])[0]
             # first predecessor's dominators
             v_all_dom = set(dom[first_pred])
@@ -98,22 +95,48 @@ def get_dom(cfg: data.CFG):
 
     return dom
 
-def test_dom():
+def is_dominator(dom, block, cfg: data.CFG):
+    """ Check if dom is the dominator of block
+
+        1. dom == block, return True
+        2. dom is the direct parent of block, return True
+        3. dom is the grandparents of block, return True
+
+        check until parents is empty, it means that dom is not the dominator of block
+    """
+    if dom == block:
+        return True
+
+    parents = cfg.pred[block]
+    if parents is []:
+        return False
+
+    if dom in parents:
+        logging.debug(f'found {dom} in {parents}')
+        return True
+    else:
+        for parent in parents:
+            logging.debug(f'check {dom} in {parent}s predecessor')
+            return is_dominator(dom, parent, cfg)
+
+def test_dom(dom, cfg: data.CFG):
     """ Test the resulting dominators are correct within a function
 
         input: map[every block] -> a set of dominators
-
-        for b in map:
-            dom = map[block]
-
-            for d in dom:
-                # check if d dominates b using DFS
-                if is_dominator(d, b):
-                    print(d dominates b)
-                else:
-                    print(err)
-                    exit(1)
     """
+    logging.debug(f'==========test_dom==========')
+    for block, dom in dom.items():
+        for d in dom:
+            if is_dominator(d, block, cfg) is False:
+                logging.error(f'{d} is not the dominator of {block}')
+                exit(1)
+
+        logging.debug(f'Every dominator of {block} is correct')
+
+def print_dom(dom):
+    logging.debug(f'==========print_dom==========')
+    for k, v in dom.items():
+        logging.debug(f'{k}: {v}')
 
 def main():
     args = sys.argv
@@ -124,12 +147,14 @@ def main():
 
     prog = json.load(sys.stdin)
     for func in prog['functions']:
-        print(f'func name: {func['name']}')
+        logging.debug(f'==========func name: {func['name']}=========')
         bb = basic_block.form_bb(func['instrs'])
         cfg = data.CFG(bb)
         dom = get_dom(cfg)
-        for k, v in dom.items():
-            print(f'{k}: {v}')
+        if len(args) > 1 and args[1] == "test":
+            test_dom(dom, cfg)
+
+    json.dump(prog, sys.stdout, indent=2)
 
 if __name__ == "__main__":
     main()
