@@ -2,16 +2,10 @@ import sys
 import json
 import basic_block
 import logging
+import resource
 import cfg as data
-
-
-class DOM():
-    """ DOM is a class for dominators.
-    """
-    dom = {}
-
-    def __init__(self):
-        pass
+from functools import lru_cache
+from treelib import Node, Tree
 
 def test_dom_front():
     pass
@@ -27,7 +21,22 @@ def print_dom_tree():
     # use treelib to print trees
     pass
 
-def get_dom_tree():
+def form_tree(root, remain, tree, cfg: data.CFG):
+    """ Form a tree
+    """
+    if remain is []:
+        return
+
+    succ = cfg.succ[root]
+    if succ is []:
+        return
+
+    for node in succ:
+        tree.create_node(node, node, parent=root)
+        remain.remove(node)
+        form_tree(node, remain, tree, cfg)
+
+def get_dom_tree(dom, cfg: data.CFG):
     """ A dominator tree is a tree where each node's children are those
         nodes it immediately dominates. The start node is the root of the tree.
 
@@ -36,7 +45,16 @@ def get_dom_tree():
 
         find every block's direct parent(idom)
     """
-    pass
+    tree = Tree()
+    all = list(cfg.bb)
+    print(all)
+    root = all[0]
+
+    all.remove(root)
+    tree.create_node(root, root)
+    succ = cfg.succ[root]
+    print(tree.show(stdout=False))
+    #tree.to_graphviz()
 
 def get_dom(cfg: data.CFG):
     """ Find dominators within a function
@@ -139,20 +157,25 @@ def print_dom(dom):
         logging.debug(f'{k}: {v}')
 
 def main():
+    sys.setrecursionlimit(200000)
     args = sys.argv
-    if (len(args) < 2):
-        logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-    elif args[1] == "debug":
-        logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
 
     prog = json.load(sys.stdin)
     for func in prog['functions']:
         logging.debug(f'==========func name: {func['name']}=========')
         bb = basic_block.form_bb(func['instrs'])
         cfg = data.CFG(bb)
-        dom = get_dom(cfg)
-        if len(args) > 1 and args[1] == "test":
-            test_dom(dom, cfg)
+        if (len(args) > 1):
+            if args[1] == "dom":
+                dom = get_dom(cfg)
+                #test_dom(dom, cfg)
+            elif args[1] == "tree":
+                dom = get_dom(cfg)
+                get_dom_tree(dom, cfg)
+            else:
+                print("unknown arg")
+                exit(1)
 
     json.dump(prog, sys.stdout, indent=2)
 

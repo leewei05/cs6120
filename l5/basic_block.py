@@ -19,7 +19,10 @@ def form_bb(instrs):
     # temporary basic block name
     name = ""
     for i, instr in enumerate(instrs):
-        if 'label' in instr and i != 0:
+        if 'label' in instr and i == 0:
+            name = instr['label']
+            continue
+        elif 'label' in instr and i != 0:
             if name == "":
                name = new_bb_name(num)
                num += 1
@@ -38,6 +41,8 @@ def form_bb(instrs):
             curr_bb = []
         else:
             curr_bb.append(instr)
+
+    name2bb[name] = curr_bb
 
     return name2bb
 

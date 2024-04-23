@@ -13,6 +13,9 @@ class CFG():
     bb = OrderedDict()
 
     def __init__(self, bb) -> None:
+        self.pred.clear()
+        self.succ.clear()
+        self.bb.clear()
         self.bb = bb
         self.form_cfg()
 
@@ -27,7 +30,8 @@ class CFG():
             self.pred[k] = []
 
             if len(bb) == 0:
-                return
+                self.succ[k] = []
+                continue
             else:
                 last_instr = bb[-1]
 
@@ -52,12 +56,12 @@ class CFG():
                 self.pred[bb].append(k)
 
     def print_cfg(self):
-        print("succesors:")
+        print("===== succesors =====")
         for k, succ in self.succ.items():
             print(f'{k} succ: {succ}')
 
         print("")
-        print("predecessors:")
+        print("===== predecessors =====")
         for k, pred in self.pred.items():
             print(f'{k} pred: {pred}')
 
