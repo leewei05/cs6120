@@ -24,7 +24,7 @@ palindrome,dom,298
 palindrome,dom_tree,298
 palindrome,dom_front,298
 totient,baseline,253
-totient,dom,incorrect
+totient,dom,253
 totient,dom_tree,253
 totient,dom_front,253
 relative-primes,baseline,1923
@@ -108,7 +108,7 @@ binary-fmt,dom,100
 binary-fmt,dom_tree,100
 binary-fmt,dom_front,100
 lcm,baseline,2326
-lcm,dom,incorrect
+lcm,dom,2326
 lcm,dom_tree,2326
 lcm,dom_front,2326
 gcd,baseline,46

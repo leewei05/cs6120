@@ -156,7 +156,7 @@ def get_dom(cfg: data.CFG):
 
     return dom
 
-def is_dominator(dom, block, cfg: data.CFG):
+def is_dominator(dom, block, visited, cfg: data.CFG):
     """ Check if dom is the dominator of block
 
         1. dom == block, return True
@@ -178,7 +178,12 @@ def is_dominator(dom, block, cfg: data.CFG):
     else:
         for parent in parents:
             logging.debug(f'check {dom} in {parent}s predecessor')
-            return is_dominator(dom, parent, cfg)
+            if parent in visited:
+                logging.debug(f'enter infinite loop')
+                return True
+
+            visited.add(parent)
+            return is_dominator(dom, parent, visited, cfg)
 
 def test_dom(dom, cfg: data.CFG):
     """ Test the resulting dominators are correct within a function
@@ -188,7 +193,8 @@ def test_dom(dom, cfg: data.CFG):
     logging.debug(f'==========test_dom==========')
     for block, dom in dom.items():
         for d in dom:
-            if is_dominator(d, block, cfg) is False:
+            visited = set()
+            if is_dominator(d, block, visited, cfg) is False:
                 logging.error(f'{d} is not the dominator of {block}')
                 exit(1)
 
@@ -200,7 +206,6 @@ def print_dom(dom):
         logging.debug(f'{k}: {v}')
 
 def main():
-    sys.setrecursionlimit(20000)
     args = sys.argv
     logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
 
