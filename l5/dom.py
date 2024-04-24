@@ -218,7 +218,6 @@ def main():
         if (len(args) > 1):
             if args[1] == "dom":
                 dom = get_dom(cfg)
-                # TODO: fix recursive limit
                 test_dom(dom, cfg)
             elif args[1] == "tree":
                 dom = get_dom(cfg)
