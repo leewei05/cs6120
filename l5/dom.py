@@ -4,22 +4,25 @@ import basic_block
 import logging
 import resource
 import cfg as data
-from functools import lru_cache
 from treelib import Node, Tree
+from subprocess import check_call
 
 def test_dom_front():
     pass
 
-def get_dom_front():
+def get_dom_front(dom, cfg: data.CFG):
     """ Find dominate frontiers, which are a set of nodes that are one edge away from domination.
 
         input: map[block] -> block's dominators
         output: map[block] -> block's dom frontiers
     """
 
-def print_dom_tree():
-    # use treelib to print trees
-    pass
+
+def draw_dom_tree(tree, file):
+    input = file + ".dot"
+    tree.to_graphviz(input)
+    output = file + ".png"
+    check_call(['dot','-Tpng', input,'-o', output])
 
 def form_tree(root, remain, tree, cfg: data.CFG):
     """ Form a tree
@@ -32,9 +35,10 @@ def form_tree(root, remain, tree, cfg: data.CFG):
         return
 
     for node in succ:
-        tree.create_node(node, node, parent=root)
-        remain.remove(node)
-        form_tree(node, remain, tree, cfg)
+        if tree.contains(node) is False:
+            tree.create_node(node, node, parent=root)
+            remain.remove(node)
+            form_tree(node, remain, tree, cfg)
 
 def get_dom_tree(dom, cfg: data.CFG):
     """ A dominator tree is a tree where each node's children are those
@@ -47,14 +51,13 @@ def get_dom_tree(dom, cfg: data.CFG):
     """
     tree = Tree()
     all = list(cfg.bb)
-    print(all)
     root = all[0]
 
     all.remove(root)
     tree.create_node(root, root)
-    succ = cfg.succ[root]
-    print(tree.show(stdout=False))
-    #tree.to_graphviz()
+    form_tree(root, all, tree, cfg)
+
+    return tree
 
 def get_dom(cfg: data.CFG):
     """ Find dominators within a function
@@ -157,22 +160,26 @@ def print_dom(dom):
         logging.debug(f'{k}: {v}')
 
 def main():
-    sys.setrecursionlimit(200000)
+    sys.setrecursionlimit(20000)
     args = sys.argv
     logging.basicConfig(stream=sys.stderr, level=logging.ERROR)
 
     prog = json.load(sys.stdin)
     for func in prog['functions']:
-        logging.debug(f'==========func name: {func['name']}=========')
+        func_name = func['name']
+        logging.debug(f'==========func name: {func_name}=========')
         bb = basic_block.form_bb(func['instrs'])
         cfg = data.CFG(bb)
         if (len(args) > 1):
             if args[1] == "dom":
                 dom = get_dom(cfg)
-                #test_dom(dom, cfg)
+                # TODO: fix recursive limit
+                test_dom(dom, cfg)
             elif args[1] == "tree":
                 dom = get_dom(cfg)
-                get_dom_tree(dom, cfg)
+                tree = get_dom_tree(dom, cfg)
+                # Disable draw
+                # draw_dom_tree(tree, func_name)
             else:
                 print("unknown arg")
                 exit(1)
