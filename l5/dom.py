@@ -7,15 +7,55 @@ import cfg as data
 from treelib import Node, Tree
 from subprocess import check_call
 
-def test_dom_front():
-    pass
+def test_dom_front(dom, front, cfg: data.CFG):
+    for b, frontiers in front.items():
+        # immediate dominance of b
+        idom = cfg.succ[b]
+        # check f's predecessor is in idom
+        for f in frontiers:
+            pred = cfg.pred[f]
+            check = False
+            for fp in pred:
+                if fp in idom:
+                    check = True
+
+            if check is False:
+                logging.debug(f'{f} is not {b} dominate frontiers')
+                exit(1)
+
+    logging.debug(f'Every dominate frontier is correct')
 
 def get_dom_front(dom, cfg: data.CFG):
     """ Find dominate frontiers, which are a set of nodes that are one edge away from domination.
 
         input: map[block] -> block's dominators
         output: map[block] -> block's dom frontiers
+
+        A's dominance frontier contains B iff A does not strictly dominate B,
+        but A does dominate some predecessor of B.
     """
+    front = {}
+    all = list(cfg.bb)
+
+    for A in all:
+        # A's immediate dominance
+        idom = cfg.succ[A]
+        # A cannot be A's dominance frontier
+        remain = all.copy()
+        remain.remove(A)
+        # so does A's direct children and A's dominators
+        remain = [x for x in remain if (x in idom and x not in dom[A])]
+        front[A] = set()
+
+        # B is immediate dominate by A
+        # check B's successor if they are frontiers
+        for B in remain:
+            succ = cfg.succ[B]
+            fs = [x for x in succ if (x not in idom)]
+            for f in fs:
+                front[A].add(f)
+
+    return front
 
 
 def draw_dom_tree(tree, file):
@@ -152,7 +192,7 @@ def test_dom(dom, cfg: data.CFG):
                 logging.error(f'{d} is not the dominator of {block}')
                 exit(1)
 
-        logging.debug(f'Every dominator of {block} is correct')
+        logging.debug(f'every dominator of {block} is correct')
 
 def print_dom(dom):
     logging.debug(f'==========print_dom==========')
@@ -180,6 +220,10 @@ def main():
                 tree = get_dom_tree(dom, cfg)
                 # Disable draw
                 # draw_dom_tree(tree, func_name)
+            elif args[1] == "front":
+                dom = get_dom(cfg)
+                front = get_dom_front(dom, cfg)
+                test_dom_front(dom, front, cfg)
             else:
                 print("unknown arg")
                 exit(1)

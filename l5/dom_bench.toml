@@ -9,3 +9,6 @@ pipeline = ["bril2json", "python3 dom.py dom", "brili -p {args}"]
 
 [runs.dom_tree]
 pipeline = ["bril2json", "python3 dom.py tree", "brili -p {args}"]
+
+[runs.dom_front]
+pipeline = ["bril2json", "python3 dom.py front", "brili -p {args}"]
