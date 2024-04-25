@@ -1,0 +1,8 @@
+extract = '(\w+)'
+benchmarks = '../../bril/benchmarks/**/*.bril'
+
+[runs.baseline]
+pipeline = ["bril2json", "python3 is_ssa.py"]
+
+[runs.to_ssa]
+pipeline = ["bril2json", "python3 to_ssa.py", "python3 is_ssa.py"]
