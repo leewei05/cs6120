@@ -43,6 +43,8 @@ def form_bb(instrs):
         else:
             curr_bb.append(instr)
 
+    if name == "":
+        name = new_bb_name(num)
     name2bb[name] = curr_bb
 
     return name2bb
