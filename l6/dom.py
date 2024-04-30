@@ -1,9 +1,11 @@
 import sys
 import json
+import copy
 import basic_block
 import logging
 import resource
 import cfg as data
+from collections import OrderedDict
 from treelib import Node, Tree
 from subprocess import check_call
 
@@ -27,6 +29,39 @@ def test_dom_front(dom, front, cfg: data.CFG):
     logging.debug(f"Every dominate frontier is correct")
 
 
+def map_inv(succ):
+    """Invert a multimap. (From bril example)
+
+    Given a successor edge map, for example, produce an inverted
+    predecessor edge map.
+    """
+    out = {key: [] for key in succ}
+    for p, ss in succ.items():
+        for s in ss:
+            out[s].append(p)
+
+    return out
+
+
+def get_dom_front_v2(dom, cfg):
+    """From bril example"""
+    dom_inv = map_inv(dom)
+    succ = cfg.succ
+    front = OrderedDict()
+
+    for block in dom:
+        # Find all successors of dominated blocks.
+        dominated_succ = set()
+        for dominated in dom_inv[block]:
+            dominated_succ.update(succ[dominated])
+
+        front[block] = [
+            b for b in dominated_succ if b not in dom_inv[block] or b == block
+        ]
+
+    return front
+
+
 def get_dom_front(dom, cfg: data.CFG):
     """Find dominate frontiers, which are a set of nodes that are one edge away from domination.
 
@@ -36,7 +71,7 @@ def get_dom_front(dom, cfg: data.CFG):
     A's dominance frontier contains B iff A does not strictly dominate B,
     but A does dominate some predecessor of B.
     """
-    front = {}
+    front = OrderedDict()
     all = list(cfg.bb)
 
     for A in all:
@@ -83,6 +118,52 @@ def form_tree(root, remain, tree, cfg: data.CFG):
             form_tree(node, remain, tree, cfg)
 
 
+def form_tree_v2(root, nodes, tree, cfg: data.CFG):
+    """Form a tree"""
+    if nodes is []:
+        return tree
+
+    remain = copy.deepcopy(nodes)
+    added = set()
+
+    for node in nodes:
+        # immediate dominators of node
+        idom = cfg.succ[node]
+
+        common = []
+        for n in idom:
+            if n not in tree[node] and n not in added:
+                tree[node].add(n)
+                added.add(n)
+
+            common.append(cfg.succ[n])
+
+        if len(common) < 2:
+            continue
+
+        result = set(common[0])
+        for c in common[1:]:
+            result.intersection_update(c)
+
+        for n in result:
+            if n not in tree[node] and n not in added:
+                tree[node].add(n)
+                added.add(n)
+
+
+def get_dom_tree_v2(dom, cfg: data.CFG):
+    # block -> children
+    tree = OrderedDict()
+    nodes = list(cfg.bb)
+    for node in nodes:
+        tree[node] = set()
+
+    root = nodes[0]
+    form_tree_v2(root, nodes, tree, cfg)
+
+    return tree
+
+
 def get_dom_tree(dom, cfg: data.CFG):
     """A dominator tree is a tree where each node's children are those
     nodes it immediately dominates. The start node is the root of the tree.
@@ -101,6 +182,41 @@ def get_dom_tree(dom, cfg: data.CFG):
     form_tree(root, all, tree, cfg)
 
     return tree
+
+
+def intersect(sets):
+    """From bril example"""
+    sets = list(sets)
+    if not sets:
+        return set()
+    out = set(sets[0])
+    for s in sets[1:]:
+        out &= s
+    return out
+
+
+def get_dom_v2(cfg: data.CFG):
+    """From bril example"""
+    nodes = list(cfg.bb)
+    pred = cfg.pred
+    succ = cfg.succ
+    dom = {v: set(nodes) for v in succ}
+
+    while True:
+        changed = False
+
+        for node in nodes:
+            new_dom = intersect(dom[p] for p in pred[node])
+            new_dom.add(node)
+
+            if dom[node] != new_dom:
+                dom[node] = new_dom
+                changed = True
+
+        if not changed:
+            break
+
+    return dom
 
 
 def get_dom(cfg: data.CFG):
@@ -211,6 +327,7 @@ def print_dom(dom):
     logging.debug(f"==========print_dom==========")
     for k, v in dom.items():
         logging.debug(f"{k}: {v}")
+        print(f"{k}: {v}")
 
 
 def main():
@@ -225,22 +342,29 @@ def main():
         cfg = data.CFG(bb)
         if len(args) > 1:
             if args[1] == "dom":
-                dom = get_dom(cfg)
+                dom = get_dom_v2(cfg)
+                # dom = get_dom(cfg)
                 test_dom(dom, cfg)
+                print_dom(dom)
             elif args[1] == "tree":
                 dom = get_dom(cfg)
-                tree = get_dom_tree(dom, cfg)
+                tree = get_dom_tree_v2(dom, cfg)
+                for k, v in tree.items():
+                    print(f"{k}: {v}")
                 # Disable draw
                 # draw_dom_tree(tree, func_name)
             elif args[1] == "front":
-                dom = get_dom(cfg)
-                front = get_dom_front(dom, cfg)
-                test_dom_front(dom, front, cfg)
+                dom = get_dom_v2(cfg)
+                # front = get_dom_front(dom, cfg)
+                front = get_dom_front_v2(dom, cfg)
+                # test_dom_front(dom, front, cfg)
+                for k, v in front.items():
+                    print(f"{k}: {v}")
             else:
                 print("unknown arg")
                 exit(1)
 
-    json.dump(prog, sys.stdout, indent=2)
+    # json.dump(prog, sys.stdout, indent=2)
 
 
 if __name__ == "__main__":
