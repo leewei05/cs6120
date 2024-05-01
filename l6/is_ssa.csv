@@ -2,10 +2,10 @@ benchmark,run,result
 quadratic,ssa,yes
 primes-between,ssa,yes
 birthday,ssa,yes
-orders,ssa,Traceback
+orders,ssa,yes
 sum-check,ssa,yes
 palindrome,ssa,yes
-totient,ssa,Traceback
+totient,ssa,yes
 relative-primes,ssa,yes
 hanoi,ssa,yes
 is-decreasing,ssa,yes
@@ -26,7 +26,7 @@ pythagorean_triple,ssa,yes
 dot-product,ssa,yes
 euclid,ssa,yes
 binary-fmt,ssa,yes
-lcm,ssa,Traceback
+lcm,ssa,yes
 gcd,ssa,yes
 catalan,ssa,yes
 armstrong,ssa,yes
