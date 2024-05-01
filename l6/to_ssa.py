@@ -72,6 +72,9 @@ def rename_var(block, bb, succ, stack, stack_num, tree, visited):
 
     pop all the names we just pushed onto the stack
     """
+    if block in visited:
+        return
+
     instrs = bb[block]
     push_count = {}
     visited.add(block)
