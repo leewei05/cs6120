@@ -2,7 +2,7 @@ import json, sys
 import basic_block
 import cfg as data
 import dom as dominator
-import copy
+import dfa
 
 
 class NLoop:
@@ -40,7 +40,8 @@ class NLoop:
             elif len(pred) == 1:
                 self.prehead = list(pred)[0]
         else:
-            # TODO: multiple head
+            # TODO: multiple head, might need to check which is the dominator
+            # assert False
             pass
 
     def form_loop(self, dom, cfg: data.CFG):
@@ -105,27 +106,75 @@ class NLoop:
         print(f"loop body: {self.body}")
 
 
-def licm(loop: NLoop):
-    """Loop-Invariant Code Motion"""
+def licm(loop: NLoop, cfg: data.CFG, var2block):
+    """Loop-Invariant Code Motion
 
-    pass
+    iterate to convergence:
+    for every instruction in the loop:
+        mark it as LI iff, for all arguments x, either:
+            all reaching defintions of x are outside of the loop, or
+            there is exactly one definition, and it is already marked as
+                loop invariant
+
+    move Loop-Invariant instr to prehead block
+    """
+
+    # No loop to optimize
+    if len(loop.body) == 0:
+        return
+
+    # loop-invariant instructions
+    li = []
+    for b, instrs in cfg.bb.items():
+        # print(b)
+        # print(instrs)
+        for instr in instrs:
+            # print(instr)
+            if "args" in instr:
+                for arg in instr["args"]:
+                    if arg not in var2block:
+                        continue
+
+                    arg_def = var2block[arg]
+                    # print(arg_def.intersection(loop.body))
+                    # check arg's definition is outside of loop
+                    if len(arg_def.intersection(loop.body)) == 0:
+                        if instr not in li:
+                            li.append(instr)
+
+                    # check arg's definition is in li
+                    if len(arg_def) == 1 and instr in li:
+                        if instr not in li:
+                            li.append(instr)
+
+    # check loop-invariant instructions are safe to move to header
 
 
-def init(func):
-    bb = basic_block.form_bb(func["instrs"])
-    cfg = data.CFG(bb)
-    dom = dominator.get_dom_v2(cfg)
-    # natural loop for optimization
-    loop = NLoop(cfg, dom)
-    # loop.print(func["name"])
-    return loop
+def map_inv(succ):
+    out = {}
+    for b, vars in succ.items():
+        for v in vars:
+            if v not in out:
+                out[v] = set({b})
+            else:
+                out[v].add(b)
+
+    return out
 
 
 def main():
     prog = json.load(sys.stdin)
     for func in prog["functions"]:
-        loop = init(func)
-        licm(loop)
+        bb = basic_block.form_bb(func["instrs"])
+        cfg = data.CFG(bb)
+        dom = dominator.get_dom_v2(cfg)
+        # natural loop for optimization
+        loop = NLoop(cfg, dom)
+        # reaching definition
+        reach = dfa.Defined(cfg)
+        _, block2var = reach.analyze()
+        var2block = map_inv(block2var)
+        licm(loop, cfg, var2block)
     json.dump(prog, sys.stdout, indent=2)
 
 
