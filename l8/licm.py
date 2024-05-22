@@ -124,7 +124,7 @@ def licm(loop: NLoop, cfg: data.CFG, var2block):
         return
 
     # loop-invariant instructions
-    li = []
+    lis = []
     for b, instrs in cfg.bb.items():
         # print(b)
         # print(instrs)
@@ -139,15 +139,41 @@ def licm(loop: NLoop, cfg: data.CFG, var2block):
                     # print(arg_def.intersection(loop.body))
                     # check arg's definition is outside of loop
                     if len(arg_def.intersection(loop.body)) == 0:
-                        if instr not in li:
-                            li.append(instr)
+                        if instr not in lis:
+                            lis.append((instr, b))
 
                     # check arg's definition is in li
-                    if len(arg_def) == 1 and instr in li:
-                        if instr not in li:
-                            li.append(instr)
+                    if len(arg_def) == 1 and arg_def in loop.body:
+                        if instr not in lis:
+                            lis.append((instr, b))
 
     # check loop-invariant instructions are safe to move to header
+    for i, li in enumerate(lis):
+        (instr, b) = li
+        # Has side effects
+        if "op" in instr and instr["op"] is ["jmp", "br", "ret", "call"]:
+            lis.remove(lis[i])
+
+    # move lis to preheader
+    prehead = loop.prehead
+    for li in lis:
+        (instr, b) = li
+        instrs = cfg.bb[b]
+        # print(cfg.bb[b])
+        instrs.remove(instr)
+        # print(cfg.bb[b])
+        cfg.bb[prehead].append(instr)
+
+
+def flatten_cfg(cfg: data.CFG):
+    new_instrs = []
+    for b, i in cfg.bb.items():
+        label = {}
+        label["label"] = b
+        new_instrs.append(label)
+        new_instrs.extend(i)
+
+    return new_instrs
 
 
 def map_inv(succ):
@@ -175,6 +201,9 @@ def main():
         _, block2var = reach.analyze()
         var2block = map_inv(block2var)
         licm(loop, cfg, var2block)
+        new_instrs = flatten_cfg(cfg)
+        func["instrs"].clear()
+        func["instrs"] = new_instrs
     json.dump(prog, sys.stdout, indent=2)
 
 
