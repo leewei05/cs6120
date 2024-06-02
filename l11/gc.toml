@@ -1,0 +1,9 @@
+# extract = 'total_dyn_inst: (\d+)'
+extract = '(\d+)'
+benchmarks = './mem/*.bril'
+
+[runs.baseline]
+pipeline = ["bril2json", "deno run brili.ts {args}"]
+
+[runs.gc]
+pipeline = ["bril2json", "deno run brili.ts -gc {args}"]
