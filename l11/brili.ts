@@ -43,7 +43,9 @@ export class Key {
  * A Heap maps Keys to arrays of a given type.
  */
 export class Heap<X> {
-  private readonly storage: Map<number, X[]>;
+  // key: storage base
+  // val tuple: [array of X, reference count]
+  private readonly storage: Map<number, [X[], number]>;
   constructor() {
     this.storage = new Map();
   }
@@ -60,7 +62,44 @@ export class Heap<X> {
   }
 
   private freeKey(key: Key) {
+    let val = this.storage.get(key.base) as [X[], number];
+    let data = val[0];
+    if (isPointer(data[0] as Value)) {
+      for (const value of data) {
+        if (value && value !== undefined) {
+          this.decrRef((value as unknown as Pointer).loc);
+        }
+      }
+    }
     return;
+  }
+
+  checkKey(key: Key) {
+    if (!this.storage.has(key.base)) {
+      throw error(
+        `Tried to get non-exist memory location base: ${key.base}, offset: ${key.offset}.`,
+      );
+    }
+  }
+
+  getRef(key: Key): number {
+    this.checkKey(key);
+    let data = this.storage.get(key.base) as [X[], number];
+    return data[1];
+  }
+
+  incrRef(key: Key) {
+    this.checkKey(key);
+    let data = this.storage.get(key.base) as [X[], number];
+    ++data[1];
+  }
+
+  decrRef(key: Key) {
+    this.checkKey(key);
+    let data = this.storage.get(key.base) as [X[], number];
+    if (--data[1] == 0) {
+      this.free(key);
+    }
   }
 
   alloc(amt: number): Key {
@@ -68,12 +107,12 @@ export class Heap<X> {
       throw error(`cannot allocate ${amt} entries`);
     }
     let base = this.getNewBase();
-    this.storage.set(base, new Array(amt));
+    this.storage.set(base, [new Array(amt), 1]);
     return new Key(base, 0);
   }
 
   free(key: Key) {
-    if (this.storage.has(key.base) && key.offset == 0) {
+    if (this.storage.has(key.base)) {
       this.freeKey(key);
       this.storage.delete(key.base);
     } else {
@@ -84,7 +123,8 @@ export class Heap<X> {
   }
 
   write(key: Key, val: X) {
-    let data = this.storage.get(key.base);
+    let dataTup = this.storage.get(key.base) as [X[], number];
+    let data = dataTup[0];
     if (data && data.length > key.offset && key.offset >= 0) {
       data[key.offset] = val;
     } else {
@@ -95,7 +135,8 @@ export class Heap<X> {
   }
 
   read(key: Key): X {
-    let data = this.storage.get(key.base);
+    let dataTup = this.storage.get(key.base) as [X[], number];
+    let data = dataTup[0];
     if (data && data.length > key.offset && key.offset >= 0) {
       return data[key.offset];
     } else {
@@ -347,6 +388,16 @@ type State = {
 };
 
 /**
+ * Check if a value is a pointer object.
+ */
+function isPointer(val: Value): boolean {
+  if (val && typeof val === "object" && "loc" in val && "type" in val) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Interpet a call instruction.
  */
 function evalCall(instr: bril.Operation, state: State): Action {
@@ -375,6 +426,11 @@ function evalCall(instr: bril.Operation, state: State): Action {
     // Check argument types
     if (!typeCheck(value, params[i].type)) {
       throw error(`function argument type mismatch`);
+    }
+
+    if (isPointer(value)) {
+      let key = (value as Pointer).loc;
+      state.heap.incrRef(key);
     }
 
     // Set the value of the arg in the new (function) environment.
@@ -486,6 +542,15 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
     case "id": {
       let val = getArgument(instr, state.env, 0);
+      if (isPointer(val)) {
+        let key = (val as Pointer).loc;
+        state.heap.incrRef(key);
+      }
+      if (state.env.has(instr.dest)) {
+        let key = (state.env.get(instr.dest) as Pointer).loc;
+        state.heap.decrRef(key);
+      }
+
       state.env.set(instr.dest, val);
       return NEXT;
     }
@@ -656,6 +721,10 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
         return { "action": "end", "ret": null };
       } else if (args.length == 1) {
         let val = get(state.env, args[0]);
+        if (isPointer(val)) {
+          let key = (val as Pointer).loc;
+          state.heap.incrRef(key);
+        }
         return { "action": "end", "ret": val };
       } else {
         throw error(`ret takes 0 or 1 argument(s); got ${args.length}`);
@@ -677,6 +746,11 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
         throw error(`cannot allocate non-pointer type ${instr.type}`);
       }
       let ptr = alloc(typ, Number(amt), state.heap);
+      if (state.env.has(instr.dest)) {
+        let key = (state.env.get(instr.dest) as Pointer).loc;
+        state.heap.decrRef(key);
+      }
+
       state.env.set(instr.dest, ptr);
       return NEXT;
     }
@@ -712,6 +786,13 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     case "ptradd": {
       let ptr = getPtr(instr, state.env, 0);
       let val = getInt(instr, state.env, 1);
+
+      state.heap.incrRef(ptr.loc);
+      if (state.env.has(instr.dest)) {
+        let key = (state.env.get(instr.dest) as Pointer).loc;
+        state.heap.decrRef(key);
+      }
+
       state.env.set(instr.dest, {
         loc: ptr.loc.add(Number(val)),
         type: ptr.type,
@@ -829,6 +910,13 @@ function evalFunc(func: bril.Function, state: State): Value | null {
       switch (action.action) {
         case "end": {
           // Return from this function.
+          for (const value of state.env.values()) {
+            // check if pointer
+            if (isPointer(value)) {
+              let key = (value as Pointer).loc;
+              state.heap.decrRef(key);
+            }
+          }
           return action.ret;
         }
         case "speculate": {
@@ -885,6 +973,12 @@ function evalFunc(func: bril.Function, state: State): Value | null {
       // Update CFG tracking for SSA phi nodes.
       state.lastlabel = state.curlabel;
       state.curlabel = line.label;
+    }
+  }
+  for (const value of state.env.values()) {
+    if (isPointer(value)) {
+      let key = (value as Pointer).loc;
+      state.heap.decrRef(key);
     }
   }
 
