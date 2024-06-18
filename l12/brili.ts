@@ -333,6 +333,7 @@ let NEXT: Action = { "action": "next" };
 enum TraceState {
   NotStart,
   OnGoing,
+  Stop,
   Done,
 }
 
@@ -341,7 +342,8 @@ export class Trace {
   private instrs: bril.Instruction[];
   constructor() {
     this.state = TraceState.NotStart;
-    this.instrs = [];
+    // start of tracing with speculate
+    this.instrs = [{ op: "speculate" }];
   }
 
   // if tracing has started
@@ -364,9 +366,25 @@ export class Trace {
     }
   }
 
+  stop() {
+    if (this.state == TraceState.OnGoing) {
+      this.state = TraceState.Stop;
+      throw error(`tracing is stopped!`);
+    }
+  }
+
   // record traced instr
   add(instr: bril.Instruction) {
-    this.instrs.push(instr);
+    if (this.isTracing()) {
+      this.instrs.push(instr);
+    }
+  }
+
+  // replace guard with condition
+  guard() {
+  }
+
+  commit() {
   }
 
   // print all of traced instrs
@@ -498,10 +516,6 @@ function evalCall(instr: bril.Operation, state: State): Action {
 function evalInstr(instr: bril.Instruction, state: State): Action {
   state.icount += BigInt(1);
 
-  if (state.trace?.isTracing()) {
-    state.trace?.add(instr);
-  }
-
   // Check that we have the right number of arguments.
   if (instr.op !== "const") {
     let count = argCounts[instr.op];
@@ -521,6 +535,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
   switch (instr.op) {
     case "const":
+      state.trace?.add(instr);
       // Interpret JSON numbers as either ints or floats.
       let value: Value;
       if (typeof instr.value === "number") {
@@ -542,12 +557,14 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
       return NEXT;
 
     case "id": {
+      state.trace?.add(instr);
       let val = getArgument(instr, state.env, 0);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "add": {
+      state.trace?.add(instr);
       let val = getInt(instr, state.env, 0) + getInt(instr, state.env, 1);
       val = BigInt.asIntN(64, val);
       state.env.set(instr.dest, val);
@@ -555,6 +572,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "mul": {
+      state.trace?.add(instr);
       let val = getInt(instr, state.env, 0) * getInt(instr, state.env, 1);
       val = BigInt.asIntN(64, val);
       state.env.set(instr.dest, val);
@@ -562,6 +580,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "sub": {
+      state.trace?.add(instr);
       let val = getInt(instr, state.env, 0) - getInt(instr, state.env, 1);
       val = BigInt.asIntN(64, val);
       state.env.set(instr.dest, val);
@@ -569,6 +588,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "div": {
+      state.trace?.add(instr);
       let lhs = getInt(instr, state.env, 0);
       let rhs = getInt(instr, state.env, 1);
       if (rhs === BigInt(0)) {
@@ -581,108 +601,127 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "le": {
+      state.trace?.add(instr);
       let val = getInt(instr, state.env, 0) <= getInt(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "lt": {
+      state.trace?.add(instr);
       let val = getInt(instr, state.env, 0) < getInt(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "gt": {
+      state.trace?.add(instr);
       let val = getInt(instr, state.env, 0) > getInt(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "ge": {
+      state.trace?.add(instr);
       let val = getInt(instr, state.env, 0) >= getInt(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "eq": {
+      state.trace?.add(instr);
       let val = getInt(instr, state.env, 0) === getInt(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "not": {
+      state.trace?.add(instr);
       let val = !getBool(instr, state.env, 0);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "and": {
+      state.trace?.add(instr);
       let val = getBool(instr, state.env, 0) && getBool(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "or": {
+      state.trace?.add(instr);
       let val = getBool(instr, state.env, 0) || getBool(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "fadd": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) + getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "fsub": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) - getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "fmul": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) * getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "fdiv": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) / getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "fle": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) <= getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "flt": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) < getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "fgt": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) > getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "fge": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) >= getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "feq": {
+      state.trace?.add(instr);
       let val = getFloat(instr, state.env, 0) === getFloat(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "print": {
+      // TODO: this breaks program
+      // state.trace?.stop(instr);
       let args = instr.args || [];
       let values = args.map(function (i) {
         let val = get(state.env, i);
@@ -695,10 +734,12 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "jmp": {
+      // eliminate jump in tracing state
       return { "action": "jump", "label": getLabel(instr, 0) };
     }
 
     case "br": {
+      // TODO
       let cond = getBool(instr, state.env, 0);
       if (cond) {
         return { "action": "jump", "label": getLabel(instr, 0) };
@@ -708,6 +749,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "ret": {
+      state.trace?.add(instr);
       let args = instr.args || [];
       if (args.length == 0) {
         return { "action": "end", "ret": null };
@@ -720,14 +762,17 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "nop": {
+      state.trace?.add(instr);
       return NEXT;
     }
 
     case "call": {
+      state.trace?.stop();
       return evalCall(instr, state);
     }
 
     case "alloc": {
+      state.trace?.stop();
       let amt = getInt(instr, state.env, 0);
       let typ = instr.type;
       if (!(typeof typ === "object" && typ.hasOwnProperty("ptr"))) {
@@ -739,12 +784,14 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "free": {
+      state.trace?.stop();
       let val = getPtr(instr, state.env, 0);
       state.heap.free(val.loc);
       return NEXT;
     }
 
     case "store": {
+      state.trace?.stop();
       let target = getPtr(instr, state.env, 0);
       state.heap.write(
         target.loc,
@@ -754,6 +801,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "load": {
+      state.trace?.stop();
       let ptr = getPtr(instr, state.env, 0);
       let val = state.heap.read(ptr.loc);
       if (val === undefined || val === null) {
@@ -765,6 +813,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "ptradd": {
+      state.trace?.stop();
       let ptr = getPtr(instr, state.env, 0);
       let val = getInt(instr, state.env, 1);
       state.env.set(instr.dest, {
@@ -775,6 +824,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "phi": {
+      state.trace?.add(instr);
       let labels = instr.labels || [];
       let args = instr.args || [];
       if (labels.length != args.length) {
@@ -805,11 +855,13 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
     // Begin speculation.
     case "speculate": {
+      state.trace?.stop();
       return { "action": "speculate" };
     }
 
     // Abort speculation if the condition is false.
     case "guard": {
+      // TODO
       if (getBool(instr, state.env, 0)) {
         return NEXT;
       } else {
@@ -819,40 +871,47 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
 
     // Resolve speculation, making speculative state real.
     case "commit": {
+      // TODO
       return { "action": "commit" };
     }
 
     case "ceq": {
+      state.trace?.add(instr);
       let val = getChar(instr, state.env, 0) === getChar(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "clt": {
+      state.trace?.add(instr);
       let val = getChar(instr, state.env, 0) < getChar(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "cle": {
+      state.trace?.add(instr);
       let val = getChar(instr, state.env, 0) <= getChar(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "cgt": {
+      state.trace?.add(instr);
       let val = getChar(instr, state.env, 0) > getChar(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "cge": {
+      state.trace?.add(instr);
       let val = getChar(instr, state.env, 0) >= getChar(instr, state.env, 1);
       state.env.set(instr.dest, val);
       return NEXT;
     }
 
     case "char2int": {
+      state.trace?.add(instr);
       let code = getChar(instr, state.env, 0).codePointAt(0);
       let val = BigInt.asIntN(64, BigInt(code as number));
       state.env.set(instr.dest, val);
@@ -860,6 +919,7 @@ function evalInstr(instr: bril.Instruction, state: State): Action {
     }
 
     case "int2char": {
+      state.trace?.add(instr);
       let i = getInt(instr, state.env, 0);
       if (i > 1114111 || i < 0 || (55295 < i && i < 57344)) {
         throw error(`value ${i} cannot be converted to char`);
