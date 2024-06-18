@@ -328,6 +328,55 @@ type Action =
 let NEXT: Action = { "action": "next" };
 
 /**
+ * Tracing state
+ */
+enum TraceState {
+  NotStart,
+  OnGoing,
+  Done,
+}
+
+export class Trace {
+  private state: TraceState;
+  private instrs: bril.Instruction[];
+  constructor() {
+    this.state = TraceState.NotStart;
+    this.instrs = [];
+  }
+
+  // if tracing has started
+  isTracing(): boolean {
+    if (this.state == TraceState.OnGoing) {
+      return true;
+    }
+
+    return false;
+  }
+
+  // start tracing
+  start() {
+    if (this.state == TraceState.NotStart) {
+      this.state = TraceState.OnGoing;
+    } else if (this.state == TraceState.OnGoing) {
+      throw error(`tracing has already started!`);
+    } else {
+      throw error(`tracing has finished!`);
+    }
+  }
+
+  // record traced instr
+  add(instr: bril.Instruction) {
+    this.instrs.push(instr);
+  }
+
+  // print all of traced instrs
+  print() {
+    console.log("Traced instructions: ", this.instrs.length);
+    console.log(JSON.stringify(this.instrs));
+  }
+}
+
+/**
  * The interpreter state that's threaded through recursive calls.
  */
 type State = {
@@ -344,6 +393,9 @@ type State = {
 
   // For speculation: the state at the point where speculation began.
   specparent: State | null;
+
+  // For tracing: the state where tracing began.
+  trace: Trace | null;
 };
 
 /**
@@ -390,6 +442,7 @@ function evalCall(instr: bril.Operation, state: State): Action {
     lastlabel: null,
     curlabel: null,
     specparent: null, // Speculation not allowed.
+    trace: null,
   };
   let retVal = evalFunc(func, newState);
   state.icount = newState.icount;
@@ -444,6 +497,10 @@ function evalCall(instr: bril.Operation, state: State): Action {
  */
 function evalInstr(instr: bril.Instruction, state: State): Action {
   state.icount += BigInt(1);
+
+  if (state.trace?.isTracing()) {
+    state.trace?.add(instr);
+  }
 
   // Check that we have the right number of arguments.
   if (instr.op !== "const") {
@@ -981,6 +1038,7 @@ function evalProg(prog: bril.Program) {
   let expected = main.args || [];
   let newEnv = parseMainArguments(expected, args);
 
+  let trace = new Trace();
   let state: State = {
     funcs: prog.functions,
     heap,
@@ -989,8 +1047,13 @@ function evalProg(prog: bril.Program) {
     lastlabel: null,
     curlabel: null,
     specparent: null,
+    trace: trace,
   };
+
+  // Start tracing in the beginning of main
+  state.trace?.start();
   evalFunc(main, state);
+  state.trace?.print();
 
   if (!heap.isEmpty()) {
     throw error(
