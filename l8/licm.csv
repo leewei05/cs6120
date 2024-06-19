@@ -4,7 +4,7 @@ quadratic,licm,785
 primes-between,baseline,574100
 primes-between,licm,574100
 birthday,baseline,484
-birthday,licm,484
+birthday,licm,462
 orders,baseline,5352
 orders,licm,5352
 sum-check,baseline,5018
@@ -14,15 +14,15 @@ palindrome,licm,298
 totient,baseline,253
 totient,licm,253
 relative-primes,baseline,1923
-relative-primes,licm,1923
+relative-primes,licm,1904
 hanoi,baseline,99
 hanoi,licm,99
 is-decreasing,baseline,127
 is-decreasing,licm,127
 check-primes,baseline,8468
-check-primes,licm,8468
+check-primes,licm,8419
 sum-sq-diff,baseline,3038
-sum-sq-diff,licm,3038
+sum-sq-diff,licm,2838
 fitsinside,baseline,10
 fitsinside,licm,10
 fact,baseline,229
@@ -62,7 +62,7 @@ catalan,licm,659378
 armstrong,baseline,133
 armstrong,licm,133
 pascals-row,baseline,146
-pascals-row,licm,146
+pascals-row,licm,137
 collatz,baseline,169
 collatz,licm,169
 sum-bits,baseline,73
@@ -70,7 +70,7 @@ sum-bits,licm,73
 rectangles-area-difference,baseline,14
 rectangles-area-difference,licm,14
 mod_inv,baseline,558
-mod_inv,licm,558
+mod_inv,licm,539
 reverse,baseline,46
 reverse,licm,46
 fizz-buzz,baseline,3652
@@ -96,7 +96,7 @@ n_root,licm,733
 newton,baseline,217
 newton,licm,217
 euler,baseline,1908
-euler,licm,1908
+euler,licm,1890
 riemann,baseline,298
 riemann,licm,298
 mandelbrot,baseline,2720947
@@ -104,9 +104,9 @@ mandelbrot,licm,2720947
 norm,baseline,505
 norm,licm,505
 cordic,baseline,517
-cordic,licm,517
+cordic,licm,510
 pow,baseline,36
-pow,licm,36
+pow,licm,35
 sqrt,baseline,322
 sqrt,licm,322
 quickselect,baseline,279
@@ -138,8 +138,8 @@ quicksort-hoare,licm,27333
 quicksort,baseline,264
 quicksort,licm,264
 two-sum,baseline,98
-two-sum,licm,98
+two-sum,licm,incorrect
 eight-queens,baseline,1006454
-eight-queens,licm,1006454
+eight-queens,licm,incorrect
 binary-search,baseline,78
 binary-search,licm,78

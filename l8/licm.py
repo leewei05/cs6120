@@ -118,51 +118,40 @@ def licm(loop: NLoop, cfg: data.CFG, var2block):
 
     move Loop-Invariant instr to prehead block
     """
-
-    # No loop to optimize
     if len(loop.body) == 0:
         return
 
-    # loop-invariant instructions
     lis = []
-    for b, instrs in cfg.bb.items():
-        # print(b)
-        # print(instrs)
-        for instr in instrs:
-            # print(instr)
-            if "args" in instr:
-                for arg in instr["args"]:
-                    if arg not in var2block:
-                        continue
+    changed = True
+    while changed:
+        changed = False
+        for b in loop.body:
+            instrs = cfg.bb[b]
+            for instr in instrs:
+                if "args" in instr:
+                    is_invariant = True
+                    for arg in instr["args"]:
+                        # arg is defined only inside of loop
+                        if arg not in var2block:
+                            continue
+                        arg_def = var2block[arg]
+                        # arg is definied outside of loop body, not invariant
+                        if len(arg_def.intersection(loop.body)) > 0:
+                            is_invariant = False
+                            break
 
-                    arg_def = var2block[arg]
-                    # print(arg_def.intersection(loop.body))
-                    # check arg's definition is outside of loop
-                    if len(arg_def.intersection(loop.body)) == 0:
-                        if instr not in lis:
-                            lis.append((instr, b))
+                    if is_invariant and instr not in lis:
+                        lis.append(instr)
+                        changed = True
 
-                    # check arg's definition is in li
-                    if len(arg_def) == 1 and arg_def in loop.body:
-                        if instr not in lis:
-                            lis.append((instr, b))
-
-    # check loop-invariant instructions are safe to move to header
-    for i, li in enumerate(lis):
-        (instr, b) = li
-        # Has side effects
-        if "op" in instr and instr["op"] is ["jmp", "br", "ret", "call"]:
-            lis.remove(lis[i])
-
-    # move lis to preheader
-    prehead = loop.prehead
-    for li in lis:
-        (instr, b) = li
-        instrs = cfg.bb[b]
-        # print(cfg.bb[b])
-        instrs.remove(instr)
-        # print(cfg.bb[b])
-        cfg.bb[prehead].append(instr)
+    for instr in lis:
+        # skip instrs with side effects and jumps
+        if "op" in instr and instr["op"] in ["jmp", "br", "ret", "call"]:
+            continue
+        for b in loop.body:
+            if instr in cfg.bb[b]:
+                cfg.bb[b].remove(instr)
+                cfg.bb[loop.prehead].append(instr)
 
 
 def flatten_cfg(cfg: data.CFG):
